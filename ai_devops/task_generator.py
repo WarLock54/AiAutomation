@@ -197,7 +197,7 @@ def generate_tasks(analysis: ChangeAnalysis, task_file: str = TASK_FILE) -> list
         key=lambda t: (_SEVERITY_ORDER.get(t.severity, 99), t.created_at),
     )
 
-    with open(task_file, "w", encoding="utf-8") as f:
+    with open(task_file, "w", encoding="utf-8", newline="\n") as f:
         f.write("=== AI DEVOPS & KOD IYILESTIRME GOREVLERI ===\n")
         f.write(f"# Son guncelleme (UTC): {now}\n")
         f.write(f"# Toplam gorev: {len(ordered)}\n")

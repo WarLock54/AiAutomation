@@ -67,8 +67,7 @@ def _package_has_any_test_file(directory: str) -> bool:
 def _render_test_file(package_name: str, source_base: str, exported_funcs: list[str]) -> str:
     test_funcs = []
     for name in exported_funcs:
-        test_funcs.append(f"""
-// Test{name}_AI_Generated_TODO, "{source_base}.go" icindeki disa acik
+        test_funcs.append(f"""// Test{name}_AI_Generated_TODO, "{source_base}.go" icindeki disa acik
 // {name} icin AI DevOps Engine (Autonomous Testing Engine) tarafindan
 // uretilen bir ISKELETTIR. Bilincli olarak t.Skip ile isaretlenmistir
 // (bkz. rapor [O1]): statik analiz {name}'in davranisini bilemez, bu
@@ -79,10 +78,17 @@ func Test{name}_AI_Generated_TODO(t *testing.T) {{
 \t// TODO(insan): table-driven test case'ler, gerekiyorsa mock/fake
 \t// bagimliliklar ve testify/require ile gercek assertion'lar ekleyin.
 \t_ = require.New(t)
-}}
-""")
+}}""")
 
-    body = "\n".join(test_funcs)
+    # NOT: gofmt, üst düzey (top-level) bildirimler arasında TAM OLARAK bir
+    # boş satır bekler -- iki değil. Her fonksiyon bloğu zaten kendi başına
+    # tam metindir (baştan/sondan fazladan \n İÇERMEZ); bu yüzden bloklar
+    # arasına "\n\n" (bir boş satır) koyuyoruz. Eskiden burada "\n".join
+    # kullanılıyordu ve her blok f-string'in kendisinden gelen bir fazladan
+    # \n ile birleşince ÇİFT boş satır oluşuyordu -- bu da üretilen dosyanın
+    # gofmt'a uymamasına ve CI'ın "Verify formatting" adımında başarısız
+    # olmasına yol açıyordu (bu hatayı gerçek CI çalıştırmasında bulduk).
+    body = "\n\n".join(test_funcs)
     return f'''package {package_name}
 
 import (
@@ -97,7 +103,9 @@ import (
 // isaretlidir (bkz. rapor [O1] -- asla sahte-yesil bir test uretilmez).
 // Bir muhendis bu dosyayi tamamlayip insan onayindan gecirmeden CI'da
 // aktif bir kalite kapisi olarak SAYILMAMALIDIR.
-{body}'''
+
+{body}
+'''
 
 
 def generate_test_skeletons(
@@ -150,7 +158,7 @@ def generate_test_skeletons(
             continue
 
         content = _render_test_file(package_name, base, exported)
-        with open(out_path, "w", encoding="utf-8") as f:
+        with open(out_path, "w", encoding="utf-8", newline="\n") as f:
             f.write(content)
         created.append(out_path)
 
