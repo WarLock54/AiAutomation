@@ -1,6 +1,5 @@
 # AI Automation — Autonomous GitFlow, Test Generation & Publishing Engine
 
-*[Türkçe](README.md)*
 
 This project is an **autonomous DevOps engine** that runs on top of a Go
 microservices architecture (`order-project/order-engine/` — a separate
@@ -137,22 +136,6 @@ Autonomous Testing Engine in sequence. The real usage pattern, however,
 is automatic on every `push` via `.github/workflows/ai-pipeline.yml`;
 running it locally is only for development/debugging.
 
-## Out of Scope
-
-This system operates at the level of **static analysis + CI automation**.
-The following were deliberately left out of scope (each would require a
-separate, substantially larger project):
-
-- **Chaos/load-test injection** (k6/Locust combined with Chaos Mesh or
-  docker-compose-based outage simulation)
-- **Feeding runtime observability data (Jaeger/OTel) into an AI model for
-  interpretation** (e.g. detecting "the saga is deadlocking here")
-- **Generating tests from an observed runtime failure** (the current
-  engine only performs static code analysis — "this package has no
-  tests" — it does not interpret an actual failure observed during a
-  chaos scenario and generate a test targeted at it)
-- **AI-driven analysis of Docker/cloud resource usage (CPU/Memory) to
-  propose Terraform/compose patches**
 
 ## Related Sub-Project
 
