@@ -1,0 +1,7 @@
+﻿{
+  "order_id": "c183ea10-c63e-4d27-bf02-ed1f9a7267f5",
+  "customer_id": "11111111-1111-1111-1111-111111111111",
+  "amount_cents": 1500,
+  "currency": "TRY",
+  "idempotency_key": "recovery-demo-20260909133300"
+}

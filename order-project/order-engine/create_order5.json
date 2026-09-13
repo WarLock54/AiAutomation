@@ -1,0 +1,8 @@
+﻿{
+  "customer_id": "11111111-1111-1111-1111-111111111111",
+  "items": [
+    { "product_id": "SKU-001", "quantity": 1, "unit_price_cents": 1500 },
+    { "product_id": "SKU-003", "quantity": 2, "unit_price_cents": 500 }
+  ],
+  "idempotency_key": "order-items-test-002"
+}

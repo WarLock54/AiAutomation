@@ -1,0 +1,5 @@
+﻿{
+  "order_id": "c183ea10-c63e-4d27-bf02-ed1f9a7267f5",
+  "items": [ { "product_id": "SKU-001", "quantity": 1 } ],
+  "idempotency_key": "recovery-demo-20260909133300"
+}

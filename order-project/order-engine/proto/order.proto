@@ -1,0 +1,69 @@
+syntax = "proto3";
+
+package order.v1;
+
+option go_package = "order-engine/gen/order/v1;orderv1";
+
+import "google/protobuf/timestamp.proto";
+
+// OrderService: siparişlerin yaşam döngüsünü yönetir ve Saga Orchestration
+// akışının giriş noktasıdır (bkz. internal/orchestrator.go).
+// CreateOrder çağrısı senkron olarak stok rezervasyonu (InventoryService) ve
+// ödeme (PaymentService) adımlarını sırayla tetikler; başarısızlık
+// durumunda telafi edici (compensating) adımlar devreye girer.
+service OrderService {
+  rpc CreateOrder(CreateOrderRequest) returns (CreateOrderResponse);
+  rpc GetOrderStatus(GetOrderStatusRequest) returns (GetOrderStatusResponse);
+  rpc CancelOrder(CancelOrderRequest) returns (CancelOrderResponse);
+}
+
+message OrderItem {
+  string product_id = 1;
+  int32 quantity = 2;
+  int64 unit_price_cents = 3;
+}
+
+enum OrderStatus {
+  ORDER_STATUS_UNSPECIFIED = 0;
+  ORDER_STATUS_PENDING = 1;   // oluşturuldu, Saga akışı çalışıyor
+  ORDER_STATUS_RESERVED = 2;  // stok rezerve edildi, ödeme bekleniyor
+  ORDER_STATUS_PAID = 3;      // ödeme tamamlandı, rezervasyon commit edildi
+  ORDER_STATUS_FAILED = 4;    // stok/ödeme başarısız, telafi tetiklendi
+  ORDER_STATUS_CANCELLED = 5;
+}
+
+message CreateOrderRequest {
+  string customer_id = 1;
+  repeated OrderItem items = 2;
+  // Client tarafından üretilen benzersiz anahtar; aynı key ile tekrar
+  // gelen istekler downstream servislere (inventory/payment) idempotent
+  // şekilde iletilir.
+  string idempotency_key = 3;
+}
+
+message CreateOrderResponse {
+  string order_id = 1;
+  OrderStatus status = 2;
+  google.protobuf.Timestamp created_at = 3;
+}
+
+message GetOrderStatusRequest {
+  string order_id = 1;
+}
+
+message GetOrderStatusResponse {
+  string order_id = 1;
+  OrderStatus status = 2;
+  string failure_reason = 3;
+  repeated OrderItem items = 4;
+}
+
+message CancelOrderRequest {
+  string order_id = 1;
+  string reason = 2;
+}
+
+message CancelOrderResponse {
+  string order_id = 1;
+  OrderStatus status = 2;
+}

@@ -1,0 +1,65 @@
+syntax = "proto3";
+
+package inventory.v1;
+
+option go_package = "order-engine/gen/inventory/v1;inventoryv1";
+
+// InventoryService: stok rezervasyon yaşam döngüsünü yönetir.
+// Akış: ReserveStock (stok düşülür, geçici rezervasyon oluşur)
+//   -> ödeme başarılı  -> CommitStock  (rezervasyon kalıcı hale gelir)
+//   -> ödeme başarısız -> ReleaseStock (stok geri iade edilir - compensating action)
+//
+// ReserveStock atomik olmalıdır: ya tüm kalemler rezerve edilir ya da
+// hiçbiri edilmez (kısmi rezervasyon yok, bkz. internal/repository.go).
+service InventoryService {
+  rpc ReserveStock(ReserveStockRequest) returns (ReserveStockResponse);
+  rpc CommitStock(CommitStockRequest) returns (CommitStockResponse);
+  rpc ReleaseStock(ReleaseStockRequest) returns (ReleaseStockResponse);
+  rpc GetStockLevel(GetStockLevelRequest) returns (GetStockLevelResponse);
+}
+
+message StockItem {
+  string product_id = 1;
+  int32 quantity = 2;
+}
+
+message ReserveStockRequest {
+  string order_id = 1;
+  repeated StockItem items = 2;
+  // TODO(idempotency): şu an server.go bu alanı kullanmıyor; Saga
+  // orchestrator'ın aynı order_id ile tekrar deneme (retry) senaryosunda
+  // çift rezervasyonu engellemek için pkg/idempotency ile entegre edilmeli.
+  string idempotency_key = 3;
+}
+
+message ReserveStockResponse {
+  bool success = 1;
+  string reservation_id = 2;
+  repeated string insufficient_product_ids = 3;
+}
+
+message CommitStockRequest {
+  string reservation_id = 1;
+}
+
+message CommitStockResponse {
+  bool success = 1;
+}
+
+message ReleaseStockRequest {
+  string reservation_id = 1;
+  string reason = 2; // örn: "payment_failed", "order_cancelled"
+}
+
+message ReleaseStockResponse {
+  bool success = 1;
+}
+
+message GetStockLevelRequest {
+  string product_id = 1;
+}
+
+message GetStockLevelResponse {
+  string product_id = 1;
+  int32 available_quantity = 2;
+}

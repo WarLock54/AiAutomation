@@ -1,0 +1,33 @@
+name: AI Autonomous DevOps & Test Pipeline
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  ai-workflow:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 2
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.21'
+
+      - name: Run AI DevOps Engine
+        run: python3 ai_devops_engine.py
+
+      - name: Run Go Tests (including AI generated testify tests)
+        run: |
+          cd order-project/order-engine
+          go test ./... -v
+
+      - name: Commit & Publish Improvement Tasks
+        run: |
+          git config --global user.name "AI DevOps Bot"
+          git config --global user.email "ai-bot@local.dev"
+          git add ai-improvement-tasks.txt
+          git commit -m "chore(ai): otonom iyileştirme taskları güncellendi [skip ci]" || echo "No changes to commit"

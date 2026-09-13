@@ -1,0 +1,45 @@
+syntax = "proto3";
+
+package payment.v1;
+
+option go_package = "order-engine/gen/payment/v1;paymentv1";
+
+// PaymentService: ödeme işlemlerini idempotent şekilde yürütür.
+// ProcessPayment aynı idempotency_key ile birden çok kez çağrılsa dahi
+// müşteriden yalnızca bir kez para tahsil edilmesini garanti eder.
+service PaymentService {
+  rpc ProcessPayment(ProcessPaymentRequest) returns (ProcessPaymentResponse);
+  rpc RefundPayment(RefundPaymentRequest) returns (RefundPaymentResponse);
+}
+
+enum PaymentStatus {
+  PAYMENT_STATUS_UNSPECIFIED = 0;
+  PAYMENT_STATUS_SUCCEEDED = 1;
+  PAYMENT_STATUS_FAILED = 2;
+  PAYMENT_STATUS_DUPLICATE = 3; // idempotent tekrar - önceki sonuç döndü
+}
+
+message ProcessPaymentRequest {
+  string order_id = 1;
+  string customer_id = 2;
+  int64 amount_cents = 3;
+  string currency = 4; // ISO 4217, örn: "TRY", "USD"
+  // Zorunlu alan: aynı key ile gelen tekrar istekler tek seferlik
+  // tahsilat garantisiyle işlenir (bkz. pkg/idempotency).
+  string idempotency_key = 5;
+}
+
+message ProcessPaymentResponse {
+  string payment_id = 1;
+  PaymentStatus status = 2;
+  string failure_reason = 3;
+}
+
+message RefundPaymentRequest {
+  string payment_id = 1;
+  string reason = 2;
+}
+
+message RefundPaymentResponse {
+  bool refunded = 1;
+}
