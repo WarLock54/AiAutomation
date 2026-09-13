@@ -1,9 +1,10 @@
 === AI DEVOPS & KOD IYILESTIRME GOREVLERI ===
-# Son guncelleme (UTC): 2026-09-13T11:33:25.765574+00:00
-# Toplam gorev: 3
+# Son guncelleme (UTC): 2026-09-13T11:48:51.154251+00:00
+# Toplam gorev: 4
 # Format: [id][severity][created=...][last_seen=...] aciklama
 # Bir gorev tamamlandiginda ilgili satiri silin; bir sonraki calistirmada bulgu hala gecerliyse yeniden eklenecektir.
 
 [b6789b71bb][KRITIK][created=2026-09-13T11:24:16.459076+00:00][last_seen=2026-09-13T11:33:25.765574+00:00] Paylaşılan pkg/ paketi değişti: bu paketi kullanan TÜM servislerde regresyon riski var, entegrasyon testleri çalıştırılmalı.
 [7263f93218][KRITIK][created=2026-09-13T11:24:16.459076+00:00][last_seen=2026-09-13T11:33:25.765574+00:00] Değişen Go dosyaları (order-project/order-engine/pkg/idempotency/idempotency.go) için bu commit'te hiç test dosyası değişmemiş -- test coverage'ın gözden kaçırılmış olma riski var.
+[2596473c75][KRITIK][created=2026-09-13T11:48:51.154251+00:00][last_seen=2026-09-13T11:48:51.154251+00:00] CI/CD workflow dosyası değişti: bu değişikliğin branch protection/required-checks kurallarını bozmadığı doğrulanmalı.
 [24feb5b603][BILGI][created=2026-09-13T10:40:34.288783+00:00][last_seen=2026-09-13T10:40:34.288783+00:00] Bu değişiklik kümesi bilinen servis/test/migration/Dockerfile kalıplarıyla eşleşmedi; genel bir kod incelemesi yeterli olabilir.
