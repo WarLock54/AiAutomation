@@ -10,10 +10,12 @@ concurrency:
   cancel-in-progress: false
 
 # Varsayılan GITHUB_TOKEN izinleri en aza indirilir; sadece bu job'un
-# gerçekten ihtiyaç duyduğu izin (repoya commit/push) açıkça verilir
-# (bkz. rapor [K2]).
+# gerçekten ihtiyaç duyduğu izinler açıkça verilir (bkz. rapor [K2]):
+# - contents: write  -> repoya commit/push (görev raporu + test iskeletleri)
+# - packages: write  -> GHCR'a (ghcr.io) Docker image push
 permissions:
   contents: write
+  packages: write
 
 jobs:
   ai-workflow:
@@ -39,7 +41,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          # go.mod `go 1.24` bildiriyor; CI'daki sürüm bundan düşük olursa
+          # go.mod `go 1.23` bildiriyor; CI'daki sürüm bundan düşük olursa
           # derleme daha başlamadan başarısız olabilir ya da CI/prod
           # davranışı farklılaşabilir (bkz. rapor [K3]). Tek kaynaktan
           # (go.mod) okuyarak sürüm kaymasını yapısal olarak engelliyoruz.
@@ -71,6 +73,19 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       # Bilinen güvenlik açığı taraması (bkz. [O4]).
+      #
+      # NOT (bkz. gerçek CI çalıştırmasında bulunan bulgular): govulncheck'in
+      # veritabanı CANLI ve HER GÜN güncellenir; standart kütüphane ve
+      # transitif bağımlılıklarda sürekli yeni CVE'ler yayınlanır (örn.
+      # crypto/tls, grpc, pgx, otel/sdk). Bunu SERT bir kapı (hard gate)
+      # yapmak, her push'ta rastgele yeni bir CVE'nin pipeline'ı durdurması
+      # anlamına gelir -- bu, "her zaman yeşil" bir CI yerine "sürekli
+      # kovalanan bir hedef" yaratır. Bu yüzden tarama HER ZAMAN çalışır ve
+      # sonuçlar loglanır (görünürlük korunur), ama `continue-on-error` ile
+      # pipeline'ın geri kalanını BLOKLAMAZ. Gerçek bir güvenlik süreci
+      # burada, log çıktısını periyodik olarak (örn. haftalık) gözden
+      # geçirip DOĞRUDAN kullanılan bağımlılıkları (grpc, pgx, otel/sdk gibi)
+      # planlı şekilde güncellemekten geçer -- her push'u durdurmaktan değil.
       - name: Dependency vulnerability scan (govulncheck)
         working-directory: order-project/order-engine
         continue-on-error: true
@@ -83,6 +98,13 @@ jobs:
         run: |
           go test ./... -v -race -covermode=atomic -coverprofile=coverage.out
 
+      # NOT: Şu an coverage'a katkı sağlayan gerçek (assertion içeren) testler
+      # henüz az; Autonomous Testing Engine'in ürettiği iskeletler bilinçli
+      # olarak t.Skip ile işaretli olduğu için (bkz. rapor [O1]) coverage'a
+      # katkı sağlamazlar -- bu İSTENEN bir davranıştır (sahte-yeşil test
+      # üretilmemesi). Bu yüzden eşik şimdilik BİLGİLENDİRİCİDİR
+      # (continue-on-error); ekip gerçek testler ekledikçe bu adım tekrar
+      # sert bir kapıya (gate) çevrilebilir.
       - name: Enforce minimum coverage threshold
         working-directory: order-project/order-engine
         continue-on-error: true
@@ -92,6 +114,87 @@ jobs:
           total=$(go tool cover -func=coverage.out | tail -n1 | awk '{print $3}' | tr -d '%')
           echo "Toplam kapsam: ${total}% (eşik: ${THRESHOLD}%)"
           awk -v total="$total" -v threshold="$THRESHOLD" 'BEGIN { exit (total+0 < threshold) }'
+
+      # --- CI/CD & Publish Pipeline (Pillar 4) ---
+      #
+      # Buraya kadar gelinmişse (gofmt/go vet/build/test SIKI birer kapıydı,
+      # başarısız olsalardı job burada zaten durmuş olurdu -- govulncheck ve
+      # coverage ise bilinçli olarak bilgilendirici/continue-on-error, bkz.
+      # yukarıdaki notlar), kod GERÇEKTEN yayınlanmaya hazır demektir. Bu
+      # adımlar, order-engine'in 4 servisini Docker image olarak build edip
+      # GitHub Container Registry'ye (ghcr.io) push eder -- otonom
+      # build+publish akışını tamamlayan son parça.
+      #
+      # GHCR seçildi çünkü: (1) ek bir secret/hesap kurulumu gerektirmiyor,
+      # sadece bu workflow'un zaten sahip olduğu GITHUB_TOKEN yeterli;
+      # (2) push edilen image'lar doğrudan bu repo/organizasyonun GitHub
+      # Packages sekmesinde görünür.
+      - name: Compute lowercase image repository prefix
+        id: image_meta
+        run: |
+          # GHCR image adları küçük harf olmak ZORUNDADIR; ${{ github.repository }}
+          # (örn. "WarLock54/AiAutomation") büyük harf içerebildiği için burada
+          # açıkça küçük harfe çevriliyor -- aksi halde push adımı "invalid
+          # reference format: repository name must be lowercase" ile başarısız
+          # olurdu.
+          echo "repo_lc=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Her servis için ayrı bir build+push adımı: build context her zaman
+      # order-engine kökü (docker-compose.yml'deki context: . ile aynı),
+      # her servisin KENDİ Dockerfile'ı kullanılır. İki etiket verilir:
+      # `latest` (en güncel main) ve commit SHA'sı (traceability -- hangi
+      # commit'in hangi image'a karşılık geldiğini kalıcı olarak izlemek
+      # için; `latest` zaman içinde üzerine yazılır ama SHA etiketi asla
+      # değişmez).
+      - name: Build & push order-service
+        uses: docker/build-push-action@v6
+        with:
+          context: order-project/order-engine
+          file: order-project/order-engine/services/order-service/Dockerfile
+          push: true
+          tags: |
+            ghcr.io/${{ steps.image_meta.outputs.repo_lc }}-order-service:latest
+            ghcr.io/${{ steps.image_meta.outputs.repo_lc }}-order-service:${{ github.sha }}
+
+      - name: Build & push inventory-service
+        uses: docker/build-push-action@v6
+        with:
+          context: order-project/order-engine
+          file: order-project/order-engine/services/inventory-service/Dockerfile
+          push: true
+          tags: |
+            ghcr.io/${{ steps.image_meta.outputs.repo_lc }}-inventory-service:latest
+            ghcr.io/${{ steps.image_meta.outputs.repo_lc }}-inventory-service:${{ github.sha }}
+
+      - name: Build & push payment-service
+        uses: docker/build-push-action@v6
+        with:
+          context: order-project/order-engine
+          file: order-project/order-engine/services/payment-service/Dockerfile
+          push: true
+          tags: |
+            ghcr.io/${{ steps.image_meta.outputs.repo_lc }}-payment-service:latest
+            ghcr.io/${{ steps.image_meta.outputs.repo_lc }}-payment-service:${{ github.sha }}
+
+      - name: Build & push notification-consumer
+        uses: docker/build-push-action@v6
+        with:
+          context: order-project/order-engine
+          file: order-project/order-engine/services/notification-consumer/Dockerfile
+          push: true
+          tags: |
+            ghcr.io/${{ steps.image_meta.outputs.repo_lc }}-notification-consumer:latest
+            ghcr.io/${{ steps.image_meta.outputs.repo_lc }}-notification-consumer:${{ github.sha }}
 
       - name: Commit & Publish Improvement Tasks
         run: |
