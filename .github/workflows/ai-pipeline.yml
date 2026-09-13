@@ -39,7 +39,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          # go.mod `go 1.23` bildiriyor; CI'daki sürüm bundan düşük olursa
+          # go.mod `go 1.24` bildiriyor; CI'daki sürüm bundan düşük olursa
           # derleme daha başlamadan başarısız olabilir ya da CI/prod
           # davranışı farklılaşabilir (bkz. rapor [K3]). Tek kaynaktan
           # (go.mod) okuyarak sürüm kaymasını yapısal olarak engelliyoruz.

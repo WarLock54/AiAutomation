@@ -66,7 +66,7 @@ failure scenario:
 
 ## Requirements
 
-- Go 1.23+
+- Go 1.24+
 - Docker & Docker Compose
 - `protoc` + `protoc-gen-go` + `protoc-gen-go-grpc` (for proto code generation)
 - `grpcurl` (for testing)
