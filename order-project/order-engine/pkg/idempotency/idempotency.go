@@ -1,29 +1,29 @@
-// Package idempotency, aynı isteğin (örn. bir ödeme çağrısının) birden
-// fazla kez işlenmesini önlemek için Redis tabanlı bir kilit/sonuç-önbelleği
-// mekanizması sağlar.
+﻿// Package idempotency, aynÄ± isteÄŸin (Ã¶rn. bir Ã¶deme Ã§aÄŸrÄ±sÄ±nÄ±n) birden
+// fazla kez iÅŸlenmesini Ã¶nlemek iÃ§in Redis tabanlÄ± bir kilit/sonuÃ§-Ã¶nbelleÄŸi
+// mekanizmasÄ± saÄŸlar.
 //
-// Akış:
-//  1. İstek gelir, Idempotency-Key VE istek gövdesi ile Acquire çağrılır.
-//  2. Daha önce görülmemişse, çağıran tarafa BENZERSİZ bir "owner token"
-//     verilir; iş mantığı bu token'ı elinde tutarak çalışır.
-//  3. Sonuç Complete ile, SADECE bu owner token hâlâ geçerliyse (lease
-//     süresi dolup başka bir worker key'i almadıysa) kalıcı hale getirilir.
-//  4. Aynı key ile ikinci istek gelirse, Acquire saklanmış sonucu döner ve
-//     iş mantığı TEKRAR ÇALIŞTIRILMAZ. Ancak istek gövdesi FARKLIYSA
-//     (örn. aynı key farklı order/customer/amount ile kullanılmışsa),
-//     ErrKeyReused döner -- önceki sonuç asla yanlış isteğe uygulanmaz.
+// AkÄ±ÅŸ:
+//  1. Ä°stek gelir, Idempotency-Key VE istek gÃ¶vdesi ile Acquire Ã§aÄŸrÄ±lÄ±r.
+//  2. Daha Ã¶nce gÃ¶rÃ¼lmemiÅŸse, Ã§aÄŸÄ±ran tarafa BENZERSÄ°Z bir "owner token"
+//     verilir; iÅŸ mantÄ±ÄŸÄ± bu token'Ä± elinde tutarak Ã§alÄ±ÅŸÄ±r.
+//  3. SonuÃ§ Complete ile, SADECE bu owner token hÃ¢lÃ¢ geÃ§erliyse (lease
+//     sÃ¼resi dolup baÅŸka bir worker key'i almadÄ±ysa) kalÄ±cÄ± hale getirilir.
+//  4. AynÄ± key ile ikinci istek gelirse, Acquire saklanmÄ±ÅŸ sonucu dÃ¶ner ve
+//     iÅŸ mantÄ±ÄŸÄ± TEKRAR Ã‡ALIÅTIRILMAZ. Ancak istek gÃ¶vdesi FARKLIYSA
+//     (Ã¶rn. aynÄ± key farklÄ± order/customer/amount ile kullanÄ±lmÄ±ÅŸsa),
+//     ErrKeyReused dÃ¶ner -- Ã¶nceki sonuÃ§ asla yanlÄ±ÅŸ isteÄŸe uygulanmaz.
 //
 // Sahiplik (ownership) neden gerekli? Eskiden Acquire, "in-progress"
-// durumunu sabit 30 saniyelik bir TTL ile işaretliyordu ve Complete/Release
-// bu kaydı kimin oluşturduğunu DOĞRULAMIYORDU. İşlem 30 saniyeyi aşarsa:
-//   - İkinci bir istek aynı key'i "yeni" sanıp iş mantığını TEKRAR çalıştırabilir,
-//   - İlk (yavaş) worker daha sonra tamamlanıp Complete çağırdığında, ikinci
-//     worker'ın sonucunun ÜZERİNE YAZABİLİR ya da onu SİLEBİLİR (Release).
-// Bu, çift ödeme/çift rezervasyon riskidir (bkz. rapor [K4]). Owner-token
-// tabanlı lease bunu şu şekilde çözer: Complete/Release/RenewLease sadece
-// hâlâ kaydı oluşturan worker'a aitse (owner eşleşirse) etki eder; aksi halde
-// ErrLeaseLost döner ve çağıran taraf bunu kritik bir tutarsızlık olarak ele
-// almalıdır (alert + manuel inceleme ya da retry).
+// durumunu sabit 30 saniyelik bir TTL ile iÅŸaretliyordu ve Complete/Release
+// bu kaydÄ± kimin oluÅŸturduÄŸunu DOÄRULAMIYORDU. Ä°ÅŸlem 30 saniyeyi aÅŸarsa:
+//   - Ä°kinci bir istek aynÄ± key'i "yeni" sanÄ±p iÅŸ mantÄ±ÄŸÄ±nÄ± TEKRAR Ã§alÄ±ÅŸtÄ±rabilir,
+//   - Ä°lk (yavaÅŸ) worker daha sonra tamamlanÄ±p Complete Ã§aÄŸÄ±rdÄ±ÄŸÄ±nda, ikinci
+//     worker'Ä±n sonucunun ÃœZERÄ°NE YAZABÄ°LÄ°R ya da onu SÄ°LEBÄ°LÄ°R (Release).
+// Bu, Ã§ift Ã¶deme/Ã§ift rezervasyon riskidir (bkz. rapor [K4]). Owner-token
+// tabanlÄ± lease bunu ÅŸu ÅŸekilde Ã§Ã¶zer: Complete/Release/RenewLease sadece
+// hÃ¢lÃ¢ kaydÄ± oluÅŸturan worker'a aitse (owner eÅŸleÅŸirse) etki eder; aksi halde
+// ErrLeaseLost dÃ¶ner ve Ã§aÄŸÄ±ran taraf bunu kritik bir tutarsÄ±zlÄ±k olarak ele
+// almalÄ±dÄ±r (alert + manuel inceleme ya da retry).
 package idempotency
 
 import (
@@ -41,21 +41,21 @@ import (
 )
 
 var (
-	// ErrInProgress, key şu anda başka bir worker tarafından işleniyorsa döner.
-	ErrInProgress = errors.New("bu idempotency key için işlem hâlâ devam ediyor")
+	// ErrInProgress, key ÅŸu anda baÅŸka bir worker tarafÄ±ndan iÅŸleniyorsa dÃ¶ner.
+	ErrInProgress = errors.New("bu idempotency key iÃ§in iÅŸlem hÃ¢lÃ¢ devam ediyor")
 
-	// ErrKeyReused, aynı idempotency key farklı bir istek gövdesiyle
-	// kullanılmaya çalışıldığında döner (bkz. rapor [K5]). Çağıran taraf
-	// bunu codes.InvalidArgument gibi bir istemci hatasına çevirmelidir;
-	// önceki sonuç ASLA bu isteğe uygulanmamalıdır.
-	ErrKeyReused = errors.New("idempotency key farklı bir istek gövdesiyle yeniden kullanılıyor")
+	// ErrKeyReused, aynÄ± idempotency key farklÄ± bir istek gÃ¶vdesiyle
+	// kullanÄ±lmaya Ã§alÄ±ÅŸÄ±ldÄ±ÄŸÄ±nda dÃ¶ner (bkz. rapor [K5]). Ã‡aÄŸÄ±ran taraf
+	// bunu codes.InvalidArgument gibi bir istemci hatasÄ±na Ã§evirmelidir;
+	// Ã¶nceki sonuÃ§ ASLA bu isteÄŸe uygulanmamalÄ±dÄ±r.
+	ErrKeyReused = errors.New("idempotency key farklÄ± bir istek gÃ¶vdesiyle yeniden kullanÄ±lÄ±yor")
 
-	// ErrLeaseLost, Complete/Release/RenewLease çağrılırken owner token
-	// artık geçerli olmadığında (lease süresi dolmuş ve/veya başka bir
-	// worker aynı key'i almış) döner. Bu KRİTİK bir durumdur: iş mantığı
-	// tamamlanmış olabilir ama sonucu güvenle önbelleğe/telafi edilemez;
-	// çağıran taraf loglamalı ve alert/manuel inceleme tetiklemelidir.
-	ErrLeaseLost = errors.New("idempotency kilidinin sahipliği kaybedildi (lease süresi doldu)")
+	// ErrLeaseLost, Complete/Release/RenewLease Ã§aÄŸrÄ±lÄ±rken owner token
+	// artÄ±k geÃ§erli olmadÄ±ÄŸÄ±nda (lease sÃ¼resi dolmuÅŸ ve/veya baÅŸka bir
+	// worker aynÄ± key'i almÄ±ÅŸ) dÃ¶ner. Bu KRÄ°TÄ°K bir durumdur: iÅŸ mantÄ±ÄŸÄ±
+	// tamamlanmÄ±ÅŸ olabilir ama sonucu gÃ¼venle Ã¶nbelleÄŸe/telafi edilemez;
+	// Ã§aÄŸÄ±ran taraf loglamalÄ± ve alert/manuel inceleme tetiklemelidir.
+	ErrLeaseLost = errors.New("idempotency kilidinin sahipliÄŸi kaybedildi (lease sÃ¼resi doldu)")
 )
 
 type Store struct {
@@ -65,11 +65,11 @@ type Store struct {
 	leaseTTL  time.Duration
 }
 
-// NewStore, resultTTL=0 verilirse 24 saatlik varsayılan kalıcı sonuç TTL'si
-// kullanır. In-flight lease TTL'si varsayılan olarak 2 dakikadır (bkz.
+// NewStore, resultTTL=0 verilirse 24 saatlik varsayÄ±lan kalÄ±cÄ± sonuÃ§ TTL'si
+// kullanÄ±r. In-flight lease TTL'si varsayÄ±lan olarak 2 dakikadÄ±r (bkz.
 // WithLeaseTTL); bu, tek bir HTTP/gRPC timeout'undan daha uzun ama sonsuz
-// olmayan, uzun süren işlemler için makul bir üst sınırdır -- gerçekten çok
-// uzun süren işlemler RenewLease ile bu süreyi uzatmalıdır.
+// olmayan, uzun sÃ¼ren iÅŸlemler iÃ§in makul bir Ã¼st sÄ±nÄ±rdÄ±r -- gerÃ§ekten Ã§ok
+// uzun sÃ¼ren iÅŸlemler RenewLease ile bu sÃ¼reyi uzatmalÄ±dÄ±r.
 func NewStore(rdb *redis.Client, prefix string, resultTTL time.Duration) *Store {
 	if resultTTL == 0 {
 		resultTTL = 24 * time.Hour
@@ -77,8 +77,8 @@ func NewStore(rdb *redis.Client, prefix string, resultTTL time.Duration) *Store 
 	return &Store{rdb: rdb, prefix: prefix, resultTTL: resultTTL, leaseTTL: 2 * time.Minute}
 }
 
-// WithLeaseTTL, in-flight kilidin TTL'sini özelleştirmek için kullanılır
-// (örn. tipik olarak çok daha uzun süren işlemler için).
+// WithLeaseTTL, in-flight kilidin TTL'sini Ã¶zelleÅŸtirmek iÃ§in kullanÄ±lÄ±r
+// (Ã¶rn. tipik olarak Ã§ok daha uzun sÃ¼ren iÅŸlemler iÃ§in).
 func (s *Store) WithLeaseTTL(d time.Duration) *Store {
 	s.leaseTTL = d
 	return s
@@ -88,11 +88,11 @@ func (s *Store) key(idempotencyKey string) string {
 	return fmt.Sprintf("%s:idem:%s", s.prefix, idempotencyKey)
 }
 
-// hashRequest, verilen isteği (genellikle proto/JSON serileştirilebilir bir
-// struct ya da map) kanonik bir SHA-256 hash'ine çevirir. Bu hash, aynı
-// idempotency key'in farklı bir istek gövdesiyle yeniden kullanılmasını
-// tespit etmek için saklanır (bkz. rapor [K5]). request nil ise (hash
-// kontrolü istenmiyorsa) boş string döner.
+// hashRequest, verilen isteÄŸi (genellikle proto/JSON serileÅŸtirilebilir bir
+// struct ya da map) kanonik bir SHA-256 hash'ine Ã§evirir. Bu hash, aynÄ±
+// idempotency key'in farklÄ± bir istek gÃ¶vdesiyle yeniden kullanÄ±lmasÄ±nÄ±
+// tespit etmek iÃ§in saklanÄ±r (bkz. rapor [K5]). request nil ise (hash
+// kontrolÃ¼ istenmiyorsa) boÅŸ string dÃ¶ner.
 func hashRequest(request any) (string, error) {
 	if request == nil {
 		return "", nil
@@ -107,22 +107,22 @@ func hashRequest(request any) (string, error) {
 
 // CheckResult, bir idempotency key'in durumunu ifade eder.
 type CheckResult struct {
-	// IsNew true ise bu key ilk kez görülüyor; çağıran taraf iş mantığını
-	// çalıştırıp sonucu OwnerToken ile birlikte Complete'e vermelidir.
+	// IsNew true ise bu key ilk kez gÃ¶rÃ¼lÃ¼yor; Ã§aÄŸÄ±ran taraf iÅŸ mantÄ±ÄŸÄ±nÄ±
+	// Ã§alÄ±ÅŸtÄ±rÄ±p sonucu OwnerToken ile birlikte Complete'e vermelidir.
 	IsNew bool
-	// CachedResult, IsNew false ve işlem tamamlanmışsa daha önceki sonucu
-	// içerir (JSON).
+	// CachedResult, IsNew false ve iÅŸlem tamamlanmÄ±ÅŸsa daha Ã¶nceki sonucu
+	// iÃ§erir (JSON).
 	CachedResult []byte
-	// OwnerToken, IsNew true olduğunda bu Acquire çağrısına özel benzersiz
-	// bir sahiplik token'ıdır. Complete/Release/RenewLease çağrılarında
+	// OwnerToken, IsNew true olduÄŸunda bu Acquire Ã§aÄŸrÄ±sÄ±na Ã¶zel benzersiz
+	// bir sahiplik token'Ä±dÄ±r. Complete/Release/RenewLease Ã§aÄŸrÄ±larÄ±nda
 	// AYNEN geri verilmelidir.
 	OwnerToken string
 }
 
-// Lua scriptleri, Redis üzerinde atomik "kontrol-et-ve-yaz" (check-and-set)
-// işlemleri için kullanılır; Go tarafında ayrı GET+SETNX adımları arasında
-// oluşabilecek race condition'ları ortadan kaldırır. Redis'in gömülü cjson
-// kütüphanesi basit JSON alan okuma/yazma için kullanılıyor.
+// Lua scriptleri, Redis Ã¼zerinde atomik "kontrol-et-ve-yaz" (check-and-set)
+// iÅŸlemleri iÃ§in kullanÄ±lÄ±r; Go tarafÄ±nda ayrÄ± GET+SETNX adÄ±mlarÄ± arasÄ±nda
+// oluÅŸabilecek race condition'larÄ± ortadan kaldÄ±rÄ±r. Redis'in gÃ¶mÃ¼lÃ¼ cjson
+// kÃ¼tÃ¼phanesi basit JSON alan okuma/yazma iÃ§in kullanÄ±lÄ±yor.
 var acquireScript = redis.NewScript(`
 local key = KEYS[1]
 local owner = ARGV[1]
@@ -205,12 +205,12 @@ redis.call('PEXPIRE', key, ttl_ms)
 return 1
 `)
 
-// Acquire, key için bir "in-flight" kilidi almaya çalışır ve aynı zamanda
-// key'in daha önce FARKLI bir istekle kullanılıp kullanılmadığını denetler
-// (bkz. rapor [K5]). request, canonical hash üretmek için JSON'a
-// serileştirilebilir olmalıdır (örn. sipariş/müşteri/tutar/kalemler gibi
-// isteğin kimliğini belirleyen alanlar); request nil verilirse hash
-// kontrolü atlanır.
+// Acquire, key iÃ§in bir "in-flight" kilidi almaya Ã§alÄ±ÅŸÄ±r ve aynÄ± zamanda
+// key'in daha Ã¶nce FARKLI bir istekle kullanÄ±lÄ±p kullanÄ±lmadÄ±ÄŸÄ±nÄ± denetler
+// (bkz. rapor [K5]). request, canonical hash Ã¼retmek iÃ§in JSON'a
+// serileÅŸtirilebilir olmalÄ±dÄ±r (Ã¶rn. sipariÅŸ/mÃ¼ÅŸteri/tutar/kalemler gibi
+// isteÄŸin kimliÄŸini belirleyen alanlar); request nil verilirse hash
+// kontrolÃ¼ atlanÄ±r.
 func (s *Store) Acquire(ctx context.Context, idempotencyKey string, request any) (*CheckResult, error) {
 	reqHash, err := hashRequest(request)
 	if err != nil {
@@ -222,7 +222,7 @@ func (s *Store) Acquire(ctx context.Context, idempotencyKey string, request any)
 
 	res, err := acquireScript.Run(ctx, s.rdb, []string{k}, owner, s.leaseTTL.Milliseconds(), reqHash).Result()
 	if err != nil {
-		return nil, fmt.Errorf("redis acquire scripti başarısız: %w", err)
+		return nil, fmt.Errorf("redis acquire scripti baÅŸarÄ±sÄ±z: %w", err)
 	}
 
 	arr, ok := res.([]any)
@@ -248,23 +248,23 @@ func (s *Store) Acquire(ctx context.Context, idempotencyKey string, request any)
 	}
 }
 
-// Complete, iş mantığı tamamlandıktan sonra sonucu kalıcı TTL ile saklar.
-// ownerToken, Acquire'dan dönen CheckResult.OwnerToken ile AYNI olmalıdır;
-// lease süresi dolup başka bir worker key'i almışsa bu çağrı ErrLeaseLost
-// döner ve sonuç YAZILMAZ (bkz. rapor [K4] -- eski worker'ın yeni worker'ın
+// Complete, iÅŸ mantÄ±ÄŸÄ± tamamlandÄ±ktan sonra sonucu kalÄ±cÄ± TTL ile saklar.
+// ownerToken, Acquire'dan dÃ¶nen CheckResult.OwnerToken ile AYNI olmalÄ±dÄ±r;
+// lease sÃ¼resi dolup baÅŸka bir worker key'i almÄ±ÅŸsa bu Ã§aÄŸrÄ± ErrLeaseLost
+// dÃ¶ner ve sonuÃ§ YAZILMAZ (bkz. rapor [K4] -- eski worker'Ä±n yeni worker'Ä±n
 // sonucunu ezmesi engellenir).
 func (s *Store) Complete(ctx context.Context, idempotencyKey, ownerToken string, result any) error {
 	data, err := json.Marshal(result)
 	if err != nil {
-		return fmt.Errorf("sonuç marshal edilemedi: %w", err)
+		return fmt.Errorf("sonuÃ§ marshal edilemedi: %w", err)
 	}
-	// data_raw doğrudan Lua script'i içine gömüleceği için JSON içindeki
-	// tek tırnak/kaçış karakterlerinden etkilenmemesi adına string olarak
-	// değil, olduğu gibi (geçerli bir JSON literali olarak) gömülüyor.
+	// data_raw doÄŸrudan Lua script'i iÃ§ine gÃ¶mÃ¼leceÄŸi iÃ§in JSON iÃ§indeki
+	// tek tÄ±rnak/kaÃ§Ä±ÅŸ karakterlerinden etkilenmemesi adÄ±na string olarak
+	// deÄŸil, olduÄŸu gibi (geÃ§erli bir JSON literali olarak) gÃ¶mÃ¼lÃ¼yor.
 	k := s.key(idempotencyKey)
 	res, err := completeScript.Run(ctx, s.rdb, []string{k}, ownerToken, s.resultTTL.Milliseconds(), string(data)).Result()
 	if err != nil {
-		return fmt.Errorf("redis complete scripti başarısız: %w", err)
+		return fmt.Errorf("redis complete scripti baÅŸarÄ±sÄ±z: %w", err)
 	}
 	if n, _ := res.(int64); n != 1 {
 		return ErrLeaseLost
@@ -272,14 +272,14 @@ func (s *Store) Complete(ctx context.Context, idempotencyKey, ownerToken string,
 	return nil
 }
 
-// Release, iş mantığı hata ile başarısız olduğunda kilidi serbest bırakır
-// ki aynı key ile yeniden deneme (retry) mümkün olsun. Sadece ownerToken
-// hâlâ geçerliyse (bu worker hâlâ kilidin sahibiyse) silme işlemi yapılır.
+// Release, iÅŸ mantÄ±ÄŸÄ± hata ile baÅŸarÄ±sÄ±z olduÄŸunda kilidi serbest bÄ±rakÄ±r
+// ki aynÄ± key ile yeniden deneme (retry) mÃ¼mkÃ¼n olsun. Sadece ownerToken
+// hÃ¢lÃ¢ geÃ§erliyse (bu worker hÃ¢lÃ¢ kilidin sahibiyse) silme iÅŸlemi yapÄ±lÄ±r.
 func (s *Store) Release(ctx context.Context, idempotencyKey, ownerToken string) error {
 	k := s.key(idempotencyKey)
 	res, err := releaseScript.Run(ctx, s.rdb, []string{k}, ownerToken).Result()
 	if err != nil {
-		return fmt.Errorf("redis release scripti başarısız: %w", err)
+		return fmt.Errorf("redis release scripti baÅŸarÄ±sÄ±z: %w", err)
 	}
 	if n, _ := res.(int64); n != 1 {
 		return ErrLeaseLost
@@ -287,15 +287,15 @@ func (s *Store) Release(ctx context.Context, idempotencyKey, ownerToken string) 
 	return nil
 }
 
-// RenewLease, uzun süren işlemler için in-flight kilidin TTL'sini uzatır.
-// Çağıran taraf (örn. beklenenden uzun süren bir dış sağlayıcı çağrısı
-// sırasında) periyodik olarak bunu çağırarak lease'in süresinin dolup
-// başka bir worker'ın aynı key'i "yeni" sanmasını engelleyebilir.
+// RenewLease, uzun sÃ¼ren iÅŸlemler iÃ§in in-flight kilidin TTL'sini uzatÄ±r.
+// Ã‡aÄŸÄ±ran taraf (Ã¶rn. beklenenden uzun sÃ¼ren bir dÄ±ÅŸ saÄŸlayÄ±cÄ± Ã§aÄŸrÄ±sÄ±
+// sÄ±rasÄ±nda) periyodik olarak bunu Ã§aÄŸÄ±rarak lease'in sÃ¼resinin dolup
+// baÅŸka bir worker'Ä±n aynÄ± key'i "yeni" sanmasÄ±nÄ± engelleyebilir.
 func (s *Store) RenewLease(ctx context.Context, idempotencyKey, ownerToken string) error {
 	k := s.key(idempotencyKey)
 	res, err := renewScript.Run(ctx, s.rdb, []string{k}, ownerToken, s.leaseTTL.Milliseconds()).Result()
 	if err != nil {
-		return fmt.Errorf("redis renew scripti başarısız: %w", err)
+		return fmt.Errorf("redis renew scripti baÅŸarÄ±sÄ±z: %w", err)
 	}
 	if n, _ := res.(int64); n != 1 {
 		return ErrLeaseLost
@@ -303,13 +303,13 @@ func (s *Store) RenewLease(ctx context.Context, idempotencyKey, ownerToken strin
 	return nil
 }
 
-// sanitizeForLua, gömülü Lua script literallerine tek tırnak/backslash
-// içeren değerlerin (bu pakette owner UUID/hash olduğu için pratikte hiç
-// olmaz) kaçmadan sızmasını önlemek için kullanılabilecek bir yardımcıdır.
-// Şu an owner=uuid.NewString() ve req_hash=hex.EncodeToString(...) her
-// zaman [0-9a-f-] karakter kümesiyle sınırlı olduğu için ekstra kaçışa
-// gerek yoktur; bu fonksiyon gelecekte farklı bir owner/kimlik üretim
-// stratejisine geçilirse savunma amaçlı burada tutulur.
+// sanitizeForLua, gÃ¶mÃ¼lÃ¼ Lua script literallerine tek tÄ±rnak/backslash
+// iÃ§eren deÄŸerlerin (bu pakette owner UUID/hash olduÄŸu iÃ§in pratikte hiÃ§
+// olmaz) kaÃ§madan sÄ±zmasÄ±nÄ± Ã¶nlemek iÃ§in kullanÄ±labilecek bir yardÄ±mcÄ±dÄ±r.
+// Åu an owner=uuid.NewString() ve req_hash=hex.EncodeToString(...) her
+// zaman [0-9a-f-] karakter kÃ¼mesiyle sÄ±nÄ±rlÄ± olduÄŸu iÃ§in ekstra kaÃ§Ä±ÅŸa
+// gerek yoktur; bu fonksiyon gelecekte farklÄ± bir owner/kimlik Ã¼retim
+// stratejisine geÃ§ilirse savunma amaÃ§lÄ± burada tutulur.
 func sanitizeForLua(s string) string {
 	replacer := strings.NewReplacer(`\`, `\\`, `'`, `\'`)
 	return replacer.Replace(s)

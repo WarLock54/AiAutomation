@@ -1,0 +1,7 @@
+=== AI DEVOPS & KOD IYILESTIRME GOREVLERI ===
+# Son guncelleme (UTC): 2026-09-13T10:40:34.288783+00:00
+# Toplam gorev: 1
+# Format: [id][severity][created=...][last_seen=...] aciklama
+# Bir gorev tamamlandiginda ilgili satiri silin; bir sonraki calistirmada bulgu hala gecerliyse yeniden eklenecektir.
+
+[24feb5b603][BILGI][created=2026-09-13T10:40:34.288783+00:00][last_seen=2026-09-13T10:40:34.288783+00:00] Bu değişiklik kümesi bilinen servis/test/migration/Dockerfile kalıplarıyla eşleşmedi; genel bir kod incelemesi yeterli olabilir.
