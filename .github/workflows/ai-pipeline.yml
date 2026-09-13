@@ -4,30 +4,116 @@ on:
   push:
     branches: [ main ]
 
+# Aynı anda birden fazla çalışma birbirinin commit/push'unu ezmesin.
+concurrency:
+  group: ai-pipeline-${{ github.ref }}
+  cancel-in-progress: false
+
+# Varsayılan GITHUB_TOKEN izinleri en aza indirilir; sadece bu job'un
+# gerçekten ihtiyaç duyduğu izin (repoya commit/push) açıkça verilir
+# (bkz. rapor [K2]).
+permissions:
+  contents: write
+
 jobs:
   ai-workflow:
+    # Bu iş akışı kendi ürettiği "chore(ai): ..." commit'ini tekrar
+    # tetiklememesi için commit mesajına [skip ci] ekliyor (GitHub Actions
+    # bunu otomatik olarak atlar). Ek güvenlik için, bot'un kendi
+    # commit'lerinden tetiklenmeyi de burada engelliyoruz.
+    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
-          fetch-depth: 2
+          # Tam geçmiş: ai_devops_engine.py artık ilk commit/shallow
+          # history durumlarını da güvenle ele alıyor (bkz. [K1]), ama
+          # anlamlı bir diff üretebilmesi için tam geçmiş yine de tercih
+          # edilir.
+          fetch-depth: 0
+          # Bu adımın ürettiği commit'i aynı workflow'un push tetikleyicisine
+          # sonsuz döngü olmadan geri yazabilmesi için varsayılan token'ı
+          # kullanıyoruz (permissions.contents=write ile birlikte).
+          persist-credentials: true
 
       - name: Set up Go
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v5
         with:
-          go-version: '1.21'
+          # go.mod `go 1.23` bildiriyor; CI'daki sürüm bundan düşük olursa
+          # derleme daha başlamadan başarısız olabilir ya da CI/prod
+          # davranışı farklılaşabilir (bkz. rapor [K3]). Tek kaynaktan
+          # (go.mod) okuyarak sürüm kaymasını yapısal olarak engelliyoruz.
+          go-version-file: order-project/order-engine/go.mod
+          cache-dependency-path: order-project/order-engine/go.sum
 
       - name: Run AI DevOps Engine
         run: python3 ai_devops_engine.py
 
-      - name: Run Go Tests (including AI generated testify tests)
+      - name: Verify formatting (gofmt)
+        working-directory: order-project/order-engine
         run: |
-          cd order-project/order-engine
-          go test ./... -v
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "Aşağıdaki dosyalar gofmt ile formatlanmamış:"
+            echo "$unformatted"
+            exit 1
+          fi
+
+      - name: go vet
+        working-directory: order-project/order-engine
+        run: go vet ./...
+
+      # Secret scanning: kod tabanına yanlışlıkla eklenmiş kimlik bilgisi,
+      # token veya anahtarları merge/deploy öncesi yakalar (bkz. [O4]).
+      - name: Secret scan (gitleaks)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Bilinen güvenlik açığı taraması (bkz. [O4]).
+      - name: Dependency vulnerability scan (govulncheck)
+        working-directory: order-project/order-engine
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          govulncheck ./...
+
+      - name: Run Go Tests (race + coverage, including AI generated testify tests)
+        working-directory: order-project/order-engine
+        run: |
+          go test ./... -v -race -covermode=atomic -coverprofile=coverage.out
+
+      - name: Enforce minimum coverage threshold
+        working-directory: order-project/order-engine
+        run: |
+          set -e
+          THRESHOLD=40
+          total=$(go tool cover -func=coverage.out | tail -n1 | awk '{print $3}' | tr -d '%')
+          echo "Toplam kapsam: ${total}% (eşik: ${THRESHOLD}%)"
+          awk -v total="$total" -v threshold="$THRESHOLD" 'BEGIN { exit (total+0 < threshold) }'
 
       - name: Commit & Publish Improvement Tasks
         run: |
           git config --global user.name "AI DevOps Bot"
           git config --global user.email "ai-bot@local.dev"
+
+          # Hem AI'nin ürettiği görev raporunu HEM DE (varsa) test'siz
+          # kalan HER paket için üretilen testify iskeletlerini stage
+          # ediyoruz. Eskiden burada TEK BİR sabit dosya yolu vardı; artık
+          # Autonomous Testing Engine (bkz. ai_devops/testing_engine.py)
+          # değişen HER paket için ayrı bir `*_ai_test.go` üretebildiğinden,
+          # bunları isimle değil DESENLE (pattern) buluyoruz.
           git add ai-improvement-tasks.txt
-          git commit -m "chore(ai): otonom iyileştirme taskları güncellendi [skip ci]" || echo "No changes to commit"
+          find . -name "*_ai_test.go" -print0 | xargs -0 -r git add
+
+          if git diff --cached --quiet; then
+            echo "Commit edilecek değişiklik yok."
+            exit 0
+          fi
+
+          git commit -m "chore(ai): otonom iyileştirme taskları ve test iskeletleri güncellendi [skip ci]"
+
+          # "Publish" başlığı gerçekten publish yapsın: commit'i uzak
+          # branch'e geri yazıyoruz (bkz. rapor [K2]). Push başarısız
+          # olursa (örn. branch koruma/kilit çakışması) job açıkça FAIL
+          # olur; sessizce yutulmaz.
+          git push origin HEAD:${{ github.ref_name }}
