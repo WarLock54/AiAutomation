@@ -60,7 +60,17 @@ class ChangeAnalysis:
 
 
 def _run_git(args: list[str]) -> subprocess.CompletedProcess:
-    return subprocess.run(["git", *args], capture_output=True, text=True)
+    # bkz. ai_devops_engine._run_git'teki ayrıntılı açıklama: encoding
+    # AÇIKÇA UTF-8'e sabitlenir; işletim sisteminin/bölgenin varsayılan
+    # kodlamasına (örn. Türkçe Windows'ta cp1254) bırakılırsa, git
+    # çıktısındaki UTF-8 baytları decode edilirken sessizce çökebilir.
+    return subprocess.run(
+        ["git", *args],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
 
 
 def get_name_status(base_ref: str) -> list[ChangedFile]:

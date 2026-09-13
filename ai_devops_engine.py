@@ -45,7 +45,23 @@ EMPTY_TREE_SHA = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
 
 
 def _run_git(args: list[str]) -> subprocess.CompletedProcess:
-    return subprocess.run(["git", *args], capture_output=True, text=True)
+    # encoding/errors AÇIKÇA belirtiliyor: subprocess.run(text=True) tek
+    # başına işletim sisteminin/bölgenin varsayılan kodlamasını kullanır
+    # (örn. Türkçe Windows'ta bu genelde UTF-8 DEĞİL, cp1254'tür). git
+    # çıktısı (özellikle Türkçe karakter içeren dosya/commit içerikleri
+    # dolayısıyla) UTF-8 olduğu için, cp1254 ile decode etmeye çalışmak
+    # `UnicodeDecodeError` ile arka plandaki okuma thread'inin çökmesine
+    # ve sonuçta `result.stdout`'un SESSİZCE None kalmasına yol açıyordu
+    # (bu da aşağı akışta bir AttributeError'a neden oluyordu). encoding
+    # ve errors burada sabitlenerek bu platforma özgü kırılganlık ortadan
+    # kaldırılıyor.
+    return subprocess.run(
+        ["git", *args],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
 
 
 def _has_previous_commit() -> bool:
